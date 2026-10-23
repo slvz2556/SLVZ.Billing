@@ -25,7 +25,6 @@ Install-Package SLVZ.Billing.Bazaar
 
 ## 1. Initialize the library
 ```bash
-using SLVZ.Billing.Bazaar;
 using SLVZ.Billing.Core;
 
 List<string> products = new() { "coin_pack_1", "subscription_premium" };
@@ -36,6 +35,8 @@ Initialize must be called once when the app starts (e.g., in your main Activity)
 
 ## 2. Purchase a product
 ```bash
+using SLVZ.Billing.Bazaar;
+
 var result =  await Billing.Purchase("coin_pack_1" , "Optional payload");
 
 if (result.Status)
@@ -47,6 +48,8 @@ else
 
 ## 3. Purchase a subscription
 ```bash
+using SLVZ.Billing.Bazaar;
+
 var result = wait Billing.Subscription("coin_pack_1" , "Optional payload");
 
 if (result.Status)
@@ -55,6 +58,8 @@ if (result.Status)
 
 ## 4. All availible items to purchase 
 ```bash
+using SLVZ.Billing.Bazaar;
+
 var items = await Billing.AllInappItems();
 var subs = await Billing.AllSubItems();
 ```
@@ -62,6 +67,8 @@ It will return all subs and purchase items with details
 
 ## 5. Consume a product (for repeatable items)
 ```bash
+using SLVZ.Billing.Bazaar;
+
 var result = await Billing.Consume(purchaseModel);
 
 

@@ -9,51 +9,29 @@ namespace SLVZ.Billing.Bazaar;
 public class Billing
 {
 
-
-    private static bool _isInitialized;
-    private static string _rsaKey = string.Empty;
-    private static List<string> ProductIDs = new List<string>();
-    private static Context? _context;
-
-
-
     private static TaskCompletionSource<(bool Status, PurchaseModel Product)>? purchaseTcs;
     private static TaskCompletionSource<(bool Status, PurchaseModel Product)>? subscriptionTcs;
 
     private static TaskCompletionSource<(bool Status, string ProductID)>? consumePurchaseTcs;
 
-    private static TaskCompletionSource<bool>? initTcs;
+
 
     private static TaskCompletionSource<(bool Status, List<ItemModel> Products)>? queryTcs;
     private static TaskCompletionSource<(bool Status, List<PurchaseModel> Products)>? checkSubscriptionTcs;
     private static TaskCompletionSource<(bool Status, List<PurchaseModel> Products)>? checkPurchaseTcs;
 
 
-    public static void Initialize(Context context, string rsaKey, List<string> productIds)
+
+    internal static async Task<bool> Initialize()
     {
-        initTcs = new TaskCompletionSource<bool>();
-        if (_isInitialized) return;
-
-        ProductIDs = productIds;
-        _context = context;
-        _rsaKey = rsaKey;
-
-        RegisterReceiver();
-        _isInitialized = true;
-
-        PoolakeyHelper.Initialize(context, rsaKey);
-    }
-
-    private static async Task<bool> Initialize()
-    {
-        initTcs = new TaskCompletionSource<bool>();
-        PoolakeyHelper.Initialize(_context, _rsaKey);
-        return await initTcs.Task;
+        Core.Billing.initTcs = new TaskCompletionSource<bool>();
+        PoolakeyHelper.Initialize(Core.Billing.Context, Core.Billing.RsaKey);
+        return await Core.Billing.initTcs.Task;
     }
 
     public static async Task<(bool Status, PurchaseModel Product)> Purchase(string productId, string payload = "", bool consumeAfter = false)
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -67,7 +45,7 @@ public class Billing
 
     public static async Task<(bool Status, PurchaseModel Product)> Subscription(string productId, string payload = "")
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -81,7 +59,7 @@ public class Billing
 
     public static async Task<(bool Status, List<ItemModel> Products)> AllInappItems()
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -89,13 +67,13 @@ public class Billing
         }
 
         queryTcs = new TaskCompletionSource<(bool Status, List<ItemModel> Products)>();
-        PoolakeyHelper.AllAvailibleInappItems(ProductIDs);
+        PoolakeyHelper.AllAvailibleInappItems(Core.Billing.ProductIDs);
         return await queryTcs.Task;
     }
 
     public static async Task<(bool Status, List<ItemModel> Products)> AllSubItems()
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -103,13 +81,13 @@ public class Billing
         }
 
         queryTcs = new TaskCompletionSource<(bool Status, List<ItemModel> Products)>();
-        PoolakeyHelper.AllAvailibleSubItems(ProductIDs);
+        PoolakeyHelper.AllAvailibleSubItems(Core.Billing.ProductIDs);
         return await queryTcs.Task;
     }
 
     public static async Task<(bool Status, List<PurchaseModel> Products)> CheckPurchases()
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -123,7 +101,7 @@ public class Billing
 
     public static async Task<(bool Status, List<PurchaseModel> Products)> CheckSubscriptions()
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -137,7 +115,7 @@ public class Billing
 
     public static async Task<(bool Status, string ProductID)> Consume(PurchaseModel purchase)
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -150,11 +128,11 @@ public class Billing
     }
 
 
-    private static void RegisterReceiver()
+    internal static void RegisterReceiver()
     {
         var filter = new IntentFilter("library.slvz.poolakeybridge.RESULT");
         var receiver = new PoolakeyReceiver();
-        _context!.RegisterReceiver(receiver, filter, ReceiverFlags.Exported);
+        Core.Billing.Context!.RegisterReceiver(receiver, filter, ReceiverFlags.NotExported);
     }
 
     [BroadcastReceiver(Enabled = true, Exported = false)]
@@ -206,12 +184,12 @@ public class Billing
                 switch (type)
                 {
                     case "init_success":
-                        _isInitialized = true;
-                        initTcs?.TrySetResult(true);
+                        Core.Billing.Initialized = true;
+                        Core.Billing.initTcs?.TrySetResult(true);
                         break;
                     default:
-                        _isInitialized = false;
-                        initTcs?.TrySetResult(false);
+                        Core.Billing.Initialized = false;
+                        Core.Billing.initTcs?.TrySetResult(false);
                         break;
                 }
             }

@@ -25,7 +25,6 @@ Install-Package SLVZ.Billing.Myket
 
 ## 1. Initialize the library
 ```bash
-using SLVZ.Billing.Myket;
 using SLVZ.Billing.Core;
 
 List<string> products = new() { "coin_pack_1", "subscription_premium" };
@@ -36,6 +35,8 @@ Initialize must be called once when the app starts (e.g., in your main Activity)
 
 ## 2. Purchase a product
 ```bash
+using SLVZ.Billing.Myket;
+
 var result = await Billing.Purchase("coin_pack_1" , "Optional payload");
 
 if (result.Status)
@@ -47,6 +48,8 @@ else
 
 ## 3. Purchase a subscription
 ```bash
+using SLVZ.Billing.Myket;
+
 var result = await Billing.Subscription("coin_pack_1" , "Optional payload");
 
 if (result.Status)
@@ -55,12 +58,16 @@ if (result.Status)
 
 ## 4. All availible items to purchase 
 ```bash
+using SLVZ.Billing.Myket;
+
 var items = await Billing.AllAvailibleItems();
 ```
 It will return all subs and purchase items with details
 
 ## 5. Consume a product (for repeatable items)
 ```bash
+using SLVZ.Billing.Myket;
+
 var result = await Billing.Consume(purchaseModel);
 
 if (result.Status)

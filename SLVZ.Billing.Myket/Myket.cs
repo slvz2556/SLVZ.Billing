@@ -7,48 +7,27 @@ namespace SLVZ.Billing.Myket;
 
 public class Billing
 {
-    private static bool _isInitialized;
-    private static string _key = string.Empty;
-    private static Context? _context;
-    private static List<string> ProductIDs { get; set; } = new List<string>();
-
+    
     private static TaskCompletionSource<(bool Status, PurchaseModel Product)>? purchaseTcs;
     private static TaskCompletionSource<(bool Status, PurchaseModel Product)>? subscriptionTcs;
 
     private static TaskCompletionSource<(bool Status, string ProductID)>? consumePurchaseTcs;
 
-    private static TaskCompletionSource<bool>? initTcs;
-
     private static TaskCompletionSource<(bool Status, List<ItemModel> Products)>? allItemsTcs;
 
-
-    public static void Initialize(Context context, string Key, List<string> skus)
-    {
-        initTcs = new TaskCompletionSource<bool>();
-        if (_isInitialized) return;
-
-        _context = context;
-        _key = Key;
-        ProductIDs = skus;
-
-        RegisterReceiver();
-        _isInitialized = true;
-        MyketBridge.Initialize(context, Key);
-
-    }
 
     
     private static async Task<bool> Initialize()
     {
-        initTcs = new TaskCompletionSource<bool>();
-        MyketBridge.Initialize(_context, _key);
-        return await initTcs.Task;
+        Core.Billing.InitTcs = new TaskCompletionSource<bool>();
+        MyketBridge.Initialize(Core.Billing.Context, Core.Billing.RsaKey);
+        return await Core.Billing.InitTcs.Task;
     }
 
 
     public static async Task<(bool Status, PurchaseModel Product)> Purchase(string productId, string payload = "")
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -62,7 +41,7 @@ public class Billing
 
     public static async Task<(bool Status, PurchaseModel Product)> Subscription(string productId, string payload = "")
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -76,7 +55,7 @@ public class Billing
 
     public static async Task<(bool Status, string ProductID)> Consume(PurchaseModel purchase)
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -90,7 +69,7 @@ public class Billing
 
     public static async Task<(bool Status, List<ItemModel> Products)> AllAvailibleItems()
     {
-        if (!_isInitialized)
+        if (!Core.Billing.Initialized)
         {
             var result = await Initialize();
             if (!result)
@@ -98,18 +77,18 @@ public class Billing
         }
 
         allItemsTcs = new TaskCompletionSource<(bool Status, List<ItemModel> Products)>();
-        MyketBridge.AllAvailibleItems(ProductIDs);
+        MyketBridge.AllAvailibleItems(Core.Billing.ProductIDs);
         return await allItemsTcs.Task;
     }
 
 
 
 
-    private static void RegisterReceiver()
+    internal static void RegisterReceiver()
     {
         var filter = new IntentFilter("library.slvz.myketbridge.RESULT");
         var receiver = new PoolakeyReceiver();
-        _context!.RegisterReceiver(receiver, filter, ReceiverFlags.Exported);
+        Core.Billing.Context!.RegisterReceiver(receiver, filter, ReceiverFlags.NotExported);
     }
 
 
@@ -162,12 +141,12 @@ public class Billing
                 switch (type)
                 {
                     case "init_success":
-                        _isInitialized = true;
-                        initTcs?.TrySetResult(true);
+                        Core.Billing.Initialized = true;
+                        Core.Billing.InitTcs?.TrySetResult(true);
                         break;
                     default:
-                        _isInitialized = false;
-                        initTcs?.TrySetResult(false);
+                        Core.Billing.Initialized = false;
+                        Core.Billing.InitTcs?.TrySetResult(false);
                         break;
                 }
             }
