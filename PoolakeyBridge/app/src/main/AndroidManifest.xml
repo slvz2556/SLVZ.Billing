@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <queries>
+        <package android:name="com.farsitel.bazaar" />
+    </queries>
+    <uses-permission android:name="com.farsitel.bazaar.permission.PAY_THROUGH_BAZAAR" />
+
+    <application>
+        <receiver
+            android:name="ir.cafebazaar.poolakey.receiver.BillingReceiver"
+            android:exported="true" >
+            <intent-filter>
+                <action android:name="com.farsitel.bazaar.purchase" />
+                <action android:name="com.farsitel.bazaar.billingSupport" />
+                <action android:name="com.farsitel.bazaar.consume" />
+                <action android:name="com.farsitel.bazaar.getPurchase" />
+                <action android:name="com.farsitel.bazaar.skuDetail" />
+                <action android:name="com.farsitel.bazaar.checkTrialSubscription" />
+            </intent-filter>
+        </receiver>
+<!--        <service android:name="com.farsitel.bazaar.IAB.BazaarIABService" android:exported="false" />-->
+    </application>
+
+</manifest>

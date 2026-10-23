@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="SLVZ.Billing.Bazaar/SLVZ.Billing.Bazaar.csproj" />
+  <Project Path="SLVZ.Billing.Myket/SLVZ.Billing.Myket.csproj" Id="416924b3-adaf-48fd-8df6-97db562cecdd" />
+  <Project Path="SLVZ.Billing/SLVZ.Billing.csproj" Id="d199b992-1f4c-44d6-af55-6709e2c2d0cb" />
+</Solution>

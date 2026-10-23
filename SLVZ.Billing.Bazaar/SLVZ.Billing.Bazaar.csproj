@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+	  <TargetFramework>net10.0-android36</TargetFramework>
+	  <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
+	  <Nullable>enable</Nullable>
+	  <ImplicitUsings>enable</ImplicitUsings>
+	  <AssemblyName>SLVZ.Billing.Bazaar</AssemblyName>
+
+	  <Title>SLVZ Billing Cafe Bazaar</Title>
+	  <Authors>Ashkan SLVZ</Authors>
+	  <Company>SLVZ</Company>
+	  <Description>A lightweight library for Android developers that make you able to purchase in app using Cafe Bazaar</Description>
+	  <PackageReadmeFile>README.md</PackageReadmeFile>
+	  <PackageLicenseExpression>MIT</PackageLicenseExpression>
+	  <PackageTags>C#, Maui, Billing, Cafebazaar</PackageTags>
+
+	  <Version>1.0.0</Version>
+	  <AssemblyVersion>1.0.0</AssemblyVersion>
+	  <FileVersion>1.0.0</FileVersion>
+  </PropertyGroup>
+
+	<ItemGroup>
+		<None Include="README.md" />
+	</ItemGroup>
+
+</Project>
