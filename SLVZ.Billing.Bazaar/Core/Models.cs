@@ -1,6 +1,6 @@
 ﻿using System.Text.Json;
 
-namespace SLVZ.Billing.Core;
+namespace SLVZ.Billing;
 
 public class PurchaseModel
 {

@@ -14,9 +14,9 @@
 	  <PackageLicenseExpression>MIT</PackageLicenseExpression>
 	  <PackageTags>C#, Maui, Billing, Cafebazaar</PackageTags>
 
-	  <Version>1.0.0</Version>
-	  <AssemblyVersion>1.0.0</AssemblyVersion>
-	  <FileVersion>1.0.0</FileVersion>
+	  <Version>1.0.1</Version>
+	  <AssemblyVersion>1.0.1</AssemblyVersion>
+	  <FileVersion>1.0.1</FileVersion>
 
   </PropertyGroup>
 

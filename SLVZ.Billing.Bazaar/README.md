@@ -25,19 +25,19 @@ Install-Package SLVZ.Billing.Bazaar
 
 ## 1. Initialize the library
 ```bash
-using SLVZ.Billing.Core;
+using SLVZ.Billing;
 
 List<string> products = new() { "coin_pack_1", "subscription_premium" };
 
-Billing.Initialize(this, "YOUR_RSA_KEY_HERE", products);
+InAppBilling.Initialize(this, "YOUR_RSA_KEY_HERE", products);
 ```
 Initialize must be called once when the app starts (e.g., in your main Activity).
 
 ## 2. Purchase a product
 ```bash
-using SLVZ.Billing.Bazaar;
+using SLVZ.Billing;
 
-var result =  await Billing.Purchase("coin_pack_1" , "Optional payload");
+var result =  await InAppBilling.Purchase("coin_pack_1" , "Optional payload");
 
 if (result.Status)
     Console.WriteLine($"Purchase successful: {result.Product.productId}");
@@ -48,9 +48,9 @@ else
 
 ## 3. Purchase a subscription
 ```bash
-using SLVZ.Billing.Bazaar;
+using SLVZ.Billing;
 
-var result = wait Billing.Subscription("coin_pack_1" , "Optional payload");
+var result = wait InAppBilling.Subscription("coin_pack_1" , "Optional payload");
 
 if (result.Status)
     Console.WriteLine("Subscription activated!");
@@ -58,18 +58,18 @@ if (result.Status)
 
 ## 4. All availible items to purchase 
 ```bash
-using SLVZ.Billing.Bazaar;
+using SLVZ.Billing;
 
-var items = await Billing.AllInappItems();
-var subs = await Billing.AllSubItems();
+var items = await InAppBilling.AllInappItems();
+var subs = await InAppBilling.AllSubItems();
 ```
 It will return all subs and purchase items with details
 
 ## 5. Consume a product (for repeatable items)
 ```bash
-using SLVZ.Billing.Bazaar;
+using SLVZ.Billing;
 
-var result = await Billing.Consume(purchaseModel);
+var result = await InAppBilling.Consume(purchaseModel);
 
 
 if (result.Status)
@@ -108,7 +108,7 @@ public class ItemModel
 
 ## ⚠️ Notes
 
-- Call **`Billing.Initialize()`** once before using any other methods.  
+- Call **`InAppBilling.Initialize()`** once before using any other methods.  
 - All operations are **asynchronous** — make sure to use `await`.  
 - If a purchase or subscription fails or is canceled, the returned `Status` will be `false`.  
 - Always **validate the purchase signature on your server** to ensure transaction integrity.  
