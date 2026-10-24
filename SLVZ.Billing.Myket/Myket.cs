@@ -31,11 +31,16 @@ public class InAppBilling
         allItemsTcs = new TaskCompletionSource<(bool Status, List<ItemModel> Products)>();
     }
 
+
+
     internal static TaskCompletionSource<(bool Status, PurchaseModel Product)>? purchaseTcs;
     internal static TaskCompletionSource<(bool Status, PurchaseModel Product)>? subscriptionTcs;
     internal static TaskCompletionSource<(bool Status, string ProductID)>? consumePurchaseTcs;
     internal static TaskCompletionSource<(bool Status, List<ItemModel> Products)>? allItemsTcs;
-    internal static async Task<(bool Status, PurchaseModel Product)> Purchase(string productId, string payload = "")
+
+
+
+    public static async Task<(bool Status, PurchaseModel Product)> Purchase(string productId, string payload = "")
     {
         if (!Initialized)
             throw new InvalidOperationException(
@@ -46,7 +51,7 @@ public class InAppBilling
         MyketBridge.Purchase(productId, payload);
         return await purchaseTcs.Task;
     }
-    internal static async Task<(bool Status, PurchaseModel Product)> Subscription(string productId, string payload = "")
+    public static async Task<(bool Status, PurchaseModel Product)> Subscription(string productId, string payload = "")
     {
         if (!Initialized)
             throw new InvalidOperationException(
@@ -57,7 +62,7 @@ public class InAppBilling
         MyketBridge.Subscribe(productId, payload);
         return await subscriptionTcs.Task;
     }
-    internal static async Task<(bool Status, string ProductID)> Consume(PurchaseModel purchase)
+    public static async Task<(bool Status, string ProductID)> Consume(PurchaseModel purchase)
     {
         if (!Initialized)
             throw new InvalidOperationException(
@@ -83,7 +88,7 @@ public class InAppBilling
 
 
 
-    internal static void RegisterReceiver()
+    private static void RegisterReceiver()
     {
         var filter = new IntentFilter("library.slvz.myketbridge.RESULT");
         var receiver = new MyketReceiver();

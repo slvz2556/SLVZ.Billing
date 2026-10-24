@@ -12,11 +12,11 @@
 	  <Description>A lightweight library for Android developers that make you able to purchase in app using Myket</Description>
 	  <PackageReadmeFile>README.md</PackageReadmeFile>
 	  <PackageLicenseExpression>MIT</PackageLicenseExpression>
-	  <PackageTags>C#, Maui, Billing, Cafebazaar</PackageTags>
+	  <PackageTags>C#, Maui, Billing, Myket</PackageTags>
 
-	  <Version>1.0.1</Version>
-	  <AssemblyVersion>1.0.1</AssemblyVersion>
-	  <FileVersion>1.0.1</FileVersion>
+	  <Version>1.0.2</Version>
+	  <AssemblyVersion>1.0.2</AssemblyVersion>
+	  <FileVersion>1.0.2</FileVersion>
 
   </PropertyGroup>
 
