@@ -126,13 +126,13 @@ public class InAppBilling
     {
         var filter = new IntentFilter("library.slvz.poolakeybridge.RESULT");
         var receiver = new PoolakeyReceiver();
-        Context!.RegisterReceiver(receiver, filter, ReceiverFlags.NotExported);
+        Context!.RegisterReceiver(receiver, filter, ReceiverFlags.Exported);
     }
 
 
 }
 
-[BroadcastReceiver(Enabled = true, Exported = false)]
+[BroadcastReceiver(Enabled = true, Exported = true)]
 internal class PoolakeyReceiver : BroadcastReceiver
 {
     public override void OnReceive(Context? context, Intent? intent)

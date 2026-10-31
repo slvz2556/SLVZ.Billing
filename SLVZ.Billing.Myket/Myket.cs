@@ -29,6 +29,8 @@ public class InAppBilling
         subscriptionTcs = new TaskCompletionSource<(bool Status, PurchaseModel Product)>();
         consumePurchaseTcs = new TaskCompletionSource<(bool Status, string ProductID)>();
         allItemsTcs = new TaskCompletionSource<(bool Status, List<ItemModel> Products)>();
+
+        //Initialized = true;
     }
 
 
@@ -39,13 +41,11 @@ public class InAppBilling
     internal static TaskCompletionSource<(bool Status, List<ItemModel> Products)>? allItemsTcs;
 
 
-
     public static async Task<(bool Status, PurchaseModel Product)> Purchase(string productId, string payload = "")
     {
         if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-
+                throw new InvalidOperationException("SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
+        
 
         purchaseTcs = new TaskCompletionSource<(bool Status, PurchaseModel Product)>();
         MyketBridge.Purchase(productId, payload);
@@ -92,14 +92,14 @@ public class InAppBilling
     {
         var filter = new IntentFilter("library.slvz.myketbridge.RESULT");
         var receiver = new MyketReceiver();
-        Context!.RegisterReceiver(receiver, filter, ReceiverFlags.NotExported);
+        Context!.RegisterReceiver(receiver, filter, ReceiverFlags.Exported);
     }
 
 
 
 }
 
-[BroadcastReceiver(Enabled = true, Exported = false)]
+[BroadcastReceiver(Enabled = true, Exported = true)]
 internal class MyketReceiver : BroadcastReceiver
 {
     public override void OnReceive(Context? context, Intent? intent)
