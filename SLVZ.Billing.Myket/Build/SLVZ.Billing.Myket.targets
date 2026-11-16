@@ -1,0 +1,8 @@
+<Project>
+  <PropertyGroup>
+    <_SLVZMyketPlaceholders>marketApplicationId=ir.mservices.market;marketBindAddress=ir.mservices.market.InAppBillingService.BIND;marketPermission=ir.mservices.market.BILLING</_SLVZMyketPlaceholders>
+
+    <AndroidManifestPlaceholders Condition="'$(AndroidManifestPlaceholders)' == ''">$(_SLVZMyketPlaceholders)</AndroidManifestPlaceholders>
+    <AndroidManifestPlaceholders Condition="'$(AndroidManifestPlaceholders)' != '' and !$(AndroidManifestPlaceholders.Contains('marketApplicationId='))">$(AndroidManifestPlaceholders);$(_SLVZMyketPlaceholders)</AndroidManifestPlaceholders>
+  </PropertyGroup>
+</Project>

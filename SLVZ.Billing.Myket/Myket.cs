@@ -1,204 +1,327 @@
-﻿using Android.Content;
-using Library.Slvz.Myketbridge;
+﻿using Android.App;
+using Android.Content;
+using IR.Myket.Billingclient;
+using IR.Myket.Billingclient.Util;
 using SLVZ.Billing.Core;
 using System.Text.Json;
+using MyketPurchase = IR.Myket.Billingclient.Util.Purchase;
 
 namespace SLVZ.Billing;
 
 public class InAppBilling
 {
     internal static bool Initialized;
-    internal static string RsaKey = string.Empty;
-    internal static List<string> ProductIDs = new List<string>();
-    internal static Context? Context;
-    internal static TaskCompletionSource<bool>? InitTcs;
+    internal static IabHelper? Helper;
+    internal static Activity? CurrentActivity;
 
-    public static void Initialize(Context context, string Key, List<string> skus)
+    private static Context? AppContext;
+    private static string RsaKey = string.Empty;
+    private static List<string> ProductIDs = new();
+    private static Task<bool>? _initTask;
+    private static readonly object _lock = new();
+
+    // ------------------------------------------------------------------
+    // Initialize / auto-reconnect
+    // ------------------------------------------------------------------
+
+    public static Task<bool> Initialize(Context context, string rsaKey, List<string> productIds)
     {
-        InitTcs = new TaskCompletionSource<bool>();
-        if (Initialized) return;
-
-        Context = context;
-        RsaKey = Key;
-        ProductIDs = skus;
-
-        RegisterReceiver();
-        MyketBridge.Initialize(context, Key);
-
-        purchaseTcs = new TaskCompletionSource<(bool Status, PurchaseModel Product)>();
-        subscriptionTcs = new TaskCompletionSource<(bool Status, PurchaseModel Product)>();
-        consumePurchaseTcs = new TaskCompletionSource<(bool Status, string ProductID)>();
-        allItemsTcs = new TaskCompletionSource<(bool Status, List<ItemModel> Products)>();
-
-        //Initialized = true;
+        CurrentActivity = context as Activity;   // refreshed on every call
+        AppContext = context.ApplicationContext ?? context;
+        RsaKey = rsaKey;
+        ProductIDs = productIds;
+        return EnsureInitialized();
     }
 
-
-
-    internal static TaskCompletionSource<(bool Status, PurchaseModel Product)>? purchaseTcs;
-    internal static TaskCompletionSource<(bool Status, PurchaseModel Product)>? subscriptionTcs;
-    internal static TaskCompletionSource<(bool Status, string ProductID)>? consumePurchaseTcs;
-    internal static TaskCompletionSource<(bool Status, List<ItemModel> Products)>? allItemsTcs;
-
-
-    public static async Task<(bool Status, PurchaseModel Product)> Purchase(string productId, string payload = "")
+    internal static Task<bool> EnsureInitialized()
     {
-        if (!Initialized)
-                throw new InvalidOperationException("SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-        
-
-        purchaseTcs = new TaskCompletionSource<(bool Status, PurchaseModel Product)>();
-        MyketBridge.Purchase(productId, payload);
-        return await purchaseTcs.Task;
+        lock (_lock)
+        {
+            if (Initialized && Helper != null) return Task.FromResult(true);
+            if (_initTask is { IsCompleted: false }) return _initTask;
+            return _initTask = SetupAsync();
+        }
     }
-    public static async Task<(bool Status, PurchaseModel Product)> Subscription(string productId, string payload = "")
+
+    private static Task<bool> SetupAsync()
     {
-        if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
+        var tcs = new TaskCompletionSource<bool>();
 
+        if (AppContext == null || string.IsNullOrEmpty(RsaKey))
+        {
+            tcs.TrySetResult(false);
+            return tcs.Task;
+        }
 
-        subscriptionTcs = new TaskCompletionSource<(bool Status, PurchaseModel Product)>();
-        MyketBridge.Subscribe(productId, payload);
-        return await subscriptionTcs.Task;
+        try
+        {
+            try { Helper?.Dispose(); } catch { }
+            var helper = new IabHelper(AppContext, RsaKey);
+            Helper = helper;
+
+            helper.StartSetup(new SetupListener(result =>
+            {
+                if (result?.IsSuccess == true)
+                {
+                    Initialized = true;
+                    tcs.TrySetResult(true);
+                }
+                else
+                {
+                    Initialized = false;
+                    try { helper.Dispose(); } catch { }
+                    if (ReferenceEquals(Helper, helper)) Helper = null;
+                    tcs.TrySetResult(false);
+                }
+            }));
+        }
+        catch
+        {
+            Initialized = false;
+            Helper = null;
+            tcs.TrySetResult(false);
+        }
+
+        return tcs.Task;
     }
-    public static async Task<(bool Status, string ProductID)> Consume(PurchaseModel purchase)
+
+    private static async Task<T> WithInit<T>(Func<Task<T>> action, T fail)
     {
-        if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-
-
-        consumePurchaseTcs = new TaskCompletionSource<(bool Status, string ProductID)>();
-        MyketBridge.Consume(purchase.type, purchase.originalJson, purchase.signature);
-        return await consumePurchaseTcs.Task;
+        if (!await EnsureInitialized()) return fail;
+        return await action();
     }
+
+    // ------------------------------------------------------------------
+    // Public API (same signatures as SLVZ.Billing.Bazaar)
+    // ------------------------------------------------------------------
+
+    public static Task<(bool Status, PurchaseModel Product)> Purchase(string productId, string payload = "", bool consumeAfter = false)
+        => WithInit(() => StartFlow(false, productId, payload, consumeAfter), (false, new PurchaseModel()));
+
+    public static Task<(bool Status, PurchaseModel Product)> Subscription(string productId, string payload = "")
+        => WithInit(() => StartFlow(true, productId, payload, false), (false, new PurchaseModel()));
+
+    public static Task<(bool Status, string ProductID)> Consume(PurchaseModel purchase)
+        => WithInit(() => ConsumeCore(purchase), (false, ""));
+
+    public static Task<(bool Status, List<ItemModel> Products)> AllInappItems()
+        => WithInit(() => QueryItems(false), (false, new List<ItemModel>()));
+
+    public static Task<(bool Status, List<ItemModel> Products)> AllSubItems()
+        => WithInit(() => QueryItems(true), (false, new List<ItemModel>()));
+
+    public static Task<(bool Status, List<PurchaseModel> Products)> CheckPurchases()
+        => WithInit(() => QueryPurchases(false), (false, new List<PurchaseModel>()));
+
+    public static Task<(bool Status, List<PurchaseModel> Products)> CheckSubscriptions()
+        => WithInit(() => QueryPurchases(true), (false, new List<PurchaseModel>()));
+
+    /// <summary>Kept for backward compatibility: in-app items + subscriptions in one list.</summary>
     public static async Task<(bool Status, List<ItemModel> Products)> AllAvailibleItems()
     {
-        if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-
-
-        allItemsTcs = new TaskCompletionSource<(bool Status, List<ItemModel> Products)>();
-        MyketBridge.AllAvailibleItems(ProductIDs);
-        return await allItemsTcs.Task;
+        var inapp = await AllInappItems();
+        var subs = await AllSubItems();
+        var all = new List<ItemModel>(inapp.Products);
+        all.AddRange(subs.Products);
+        return (inapp.Status || subs.Status, all);
     }
 
+    // ------------------------------------------------------------------
+    // Implementation
+    // ------------------------------------------------------------------
 
-
-
-    private static void RegisterReceiver()
+    private static Task<(bool Status, PurchaseModel Product)> StartFlow(bool subscribe, string productId, string payload, bool consumeAfter)
     {
-        var filter = new IntentFilter("library.slvz.myketbridge.RESULT");
-        var receiver = new MyketReceiver();
-        Context!.RegisterReceiver(receiver, filter, ReceiverFlags.Exported);
+        var tcs = new TaskCompletionSource<(bool Status, PurchaseModel Product)>();
+        var fail = (false, new PurchaseModel());
+        var helper = Helper;
+        var activity = CurrentActivity;
+
+        if (helper == null || activity == null)
+        {
+            tcs.TrySetResult(fail);
+            return tcs.Task;
+        }
+
+        var type = subscribe ? "subs" : "inapp";
+
+        var listener = new PurchaseListener((result, purchase) =>
+        {
+            if (result?.IsSuccess == true && purchase != null)
+            {
+                var model = ToModel(purchase, type);
+                var ok = purchase.PurchaseState == 0;   // 0 = purchased
+                tcs.TrySetResult((ok, model));
+
+                if (ok && consumeAfter && !subscribe)
+                    _ = Consume(model);
+            }
+            else
+            {
+                tcs.TrySetResult(fail);
+            }
+        });
+
+        activity.RunOnUiThread(() =>
+        {
+            try
+            {
+                if (subscribe) helper.LaunchSubscriptionPurchaseFlow(activity, productId, listener, payload);
+                else helper.LaunchPurchaseFlow(activity, productId, listener, payload);
+            }
+            catch
+            {
+                tcs.TrySetResult(fail);
+            }
+        });
+
+        return tcs.Task;
     }
 
+    private static Task<(bool Status, string ProductID)> ConsumeCore(PurchaseModel purchase)
+    {
+        var tcs = new TaskCompletionSource<(bool Status, string ProductID)>();
+        var helper = Helper;
 
+        if (helper == null
+            || string.IsNullOrEmpty(purchase.originalJson)
+            || string.IsNullOrEmpty(purchase.signature))
+        {
+            tcs.TrySetResult((false, ""));
+            return tcs.Task;
+        }
 
+        try
+        {
+            var p = new MyketPurchase(purchase.type ?? IabHelper.ItemTypeInapp, purchase.originalJson, purchase.signature);
+
+            helper.ConsumeAsync(p, new ConsumeListener((_, result) =>
+            {
+                var ok = result?.IsSuccess == true;
+                tcs.TrySetResult((ok, ok ? purchase.productId ?? "" : ""));
+            }));
+        }
+        catch
+        {
+            tcs.TrySetResult((false, ""));
+        }
+
+        return tcs.Task;
+    }
+
+    private static async Task<(bool Status, List<ItemModel> Products)> QueryItems(bool subs)
+    {
+        var helper = Helper;
+        var items = new List<ItemModel>();
+        if (helper == null) return (false, items);
+
+        var wantedType = subs ? IabHelper.ItemTypeSubs : IabHelper.ItemTypeInapp;
+
+        // QueryInventory is a blocking call, so it must not run on the UI thread
+        var inventory = await Task.Run(() =>
+        {
+            try
+            {
+                return subs
+                    ? helper.QueryInventory(true, null, ProductIDs)
+                    : helper.QueryInventory(true, ProductIDs, null);
+            }
+            catch
+            {
+                return null;
+            }
+        });
+
+        if (inventory == null) return (false, items);
+
+        foreach (var s in inventory.AllProducts ?? new List<SkuDetails>())
+        {
+            if (!string.Equals(s.Type, wantedType, StringComparison.OrdinalIgnoreCase)) continue;
+
+            items.Add(new ItemModel
+            {
+                productId = s.Sku,
+                description = s.Description,
+                price = s.Price,
+                title = s.Title,
+                type = s.Type
+            });
+        }
+
+        return (true, items);
+    }
+
+    private static async Task<(bool Status, List<PurchaseModel> Products)> QueryPurchases(bool subs)
+    {
+        var helper = Helper;
+        var result = new List<PurchaseModel>();
+        if (helper == null) return (false, result);
+
+        var wantedType = subs ? IabHelper.ItemTypeSubs : IabHelper.ItemTypeInapp;
+
+        var inventory = await Task.Run(() =>
+        {
+            try { return helper.QueryInventory(false, null, null); }
+            catch { return null; }
+        });
+
+        if (inventory == null) return (false, result);
+
+        foreach (var p in inventory.AllPurchases ?? new List<MyketPurchase>())
+        {
+            if (!string.Equals(p.ItemType, wantedType, StringComparison.OrdinalIgnoreCase)) continue;
+            result.Add(ToModel(p, wantedType));
+        }
+
+        return (true, result);
+    }
+
+    internal static PurchaseModel ToModel(MyketPurchase p, string fallbackType) => new()
+    {
+        productId = p.Sku,
+        purchaseToken = p.Token,
+        state = JsonSerializer.SerializeToElement(StateName(p.PurchaseState)),
+        payload = p.DeveloperPayload,
+        signature = p.Signature,
+        orderId = p.OrderId,
+        originalJson = p.OriginalJson,
+        purchaseTime = p.PurchaseTime,
+        type = p.ItemType ?? fallbackType
+    };
+
+    private static string StateName(int state) => state switch
+    {
+        0 => "PURCHASED",
+        1 => "CANCELED",
+        2 => "REFUNDED",
+        _ => state.ToString()
+    };
 }
 
-[BroadcastReceiver(Enabled = true, Exported = true)]
-internal class MyketReceiver : BroadcastReceiver
+// ----------------------------------------------------------------------
+// Listener adapters (Myket's IabHelper uses Java callback interfaces)
+// ----------------------------------------------------------------------
+
+internal sealed class SetupListener : Java.Lang.Object, IabHelper.IOnIabSetupFinishedListener
 {
-    public override void OnReceive(Context? context, Intent? intent)
-    {
-        if (intent == null ) return;
-        var type = intent.GetStringExtra("result_type") ?? "";
-        var message = intent.GetStringExtra("result_message") ?? "";
-        var product = intent.GetStringExtra("result_product") ?? "";
+    private readonly Action<IabResult?> _action;
+    public SetupListener(Action<IabResult?> action) => _action = action;
 
-        Console.WriteLine($"Myket payment: {message}");
-
-        if (type.StartsWith("purchase"))
-        {
-            switch (type)
-            {
-                case "purchase_success":
-                    var model = JsonSerializer.Deserialize<PurchaseModel>(product);
-                    InAppBilling.purchaseTcs?.TrySetResult((true, model));
-                    break;
-                case "purchase_failed":
-                    InAppBilling.purchaseTcs?.TrySetResult((false, new PurchaseModel()));
-                    break;
-                default:
-                    InAppBilling.purchaseTcs?.TrySetResult((false, new PurchaseModel()));
-                    break;
-            }
-        }
-        else if (type.StartsWith("subscribe"))
-        {
-            switch (type)
-            {
-                case "subscribe_success":
-                    var model = JsonSerializer.Deserialize<PurchaseModel>(product);
-                    InAppBilling.subscriptionTcs?.TrySetResult((true, model));
-                    break;
-                case "subscribe_failed":
-                    InAppBilling.subscriptionTcs?.TrySetResult((false, new PurchaseModel()));
-                    break;
-                default:
-                    InAppBilling.subscriptionTcs?.TrySetResult((false, new PurchaseModel()));
-                    break;
-            }
-        }
-        else if (type.StartsWith("init"))
-        {
-            switch (type)
-            {
-                case "init_success":
-                    InAppBilling.Initialized = true;
-                    InAppBilling.InitTcs?.TrySetResult(true);
-                    break;
-                default:
-                    InAppBilling.Initialized = false;
-                    InAppBilling.InitTcs?.TrySetResult(false);
-                    break;
-            }
-        }
-        else if (type.StartsWith("consume"))
-        {
-            switch (type)
-            {
-                case "consume_success":
-                    InAppBilling.consumePurchaseTcs?.TrySetResult((true, product));
-                    break;
-                case "consume_failed":
-                    InAppBilling.consumePurchaseTcs?.TrySetResult((false, ""));
-                    break;
-                default:
-                    InAppBilling.consumePurchaseTcs?.TrySetResult((false, ""));
-                    break;
-            }
-        }
-        else if (type.StartsWith("query"))
-        {
-            switch (type)
-            {
-                case "query_success":
-                    var model = JsonSerializer.Deserialize<List<ItemModel>>(product);
-                    InAppBilling.allItemsTcs?.TrySetResult((true, model));
-                    break;
-                case "query_failed":
-                    InAppBilling.allItemsTcs?.TrySetResult((false, new List<ItemModel>()));
-                    break;
-                default:
-                    InAppBilling.allItemsTcs?.TrySetResult((false, new List<ItemModel>()));
-                    break;
-            }
-        }
-        else
-        {
-            InAppBilling.allItemsTcs?.TrySetResult((false, new List<ItemModel>()));
-            InAppBilling.consumePurchaseTcs?.TrySetResult((false, ""));
-            InAppBilling.subscriptionTcs?.TrySetResult((false, new PurchaseModel()));
-            InAppBilling.purchaseTcs?.TrySetResult((false, new PurchaseModel()));
-        }
-
-
-
-
-    }
+    public void OnIabSetupFinished(IabResult? result) => _action(result);
 }
 
+internal sealed class PurchaseListener : Java.Lang.Object, IabHelper.IOnIabPurchaseFinishedListener
+{
+    private readonly Action<IabResult?, MyketPurchase?> _action;
+    public PurchaseListener(Action<IabResult?, MyketPurchase?> action) => _action = action;
+
+    public void OnIabPurchaseFinished(IabResult? result, MyketPurchase? purchase) => _action(result, purchase);
+}
+
+internal sealed class ConsumeListener : Java.Lang.Object, IabHelper.IOnConsumeFinishedListener
+{
+    private readonly Action<MyketPurchase?, IabResult?> _action;
+    public ConsumeListener(Action<MyketPurchase?, IabResult?> action) => _action = action;
+
+    public void OnConsumeFinished(MyketPurchase? purchase, IabResult? result) => _action(purchase, result);
+}

@@ -14,9 +14,9 @@
 	  <PackageLicenseExpression>MIT</PackageLicenseExpression>
 	  <PackageTags>C#, Maui, Billing, Myket</PackageTags>
 
-	  <Version>1.0.3</Version>
-	  <AssemblyVersion>1.0.3</AssemblyVersion>
-	  <FileVersion>1.0.3</FileVersion>
+	  <Version>2.0.1</Version>
+	  <AssemblyVersion>2.0.1</AssemblyVersion>
+	  <FileVersion>2.0.1</FileVersion>
 
   </PropertyGroup>
 
@@ -24,8 +24,12 @@
 		<None Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
-	<!--<ItemGroup>
-		<AndroidMavenLibrary Include="com.github.cafebazaar.Poolakey:poolakey" Version="2.3.0" Repository="https://jitpack.io" />
+	<ItemGroup>
+		<None Include="Build\SLVZ.Billing.Myket.targets" Pack="true" PackagePath="build\" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<AndroidMavenLibrary Include="com.github.myketstore:myket-billing-client" Version="1.19" Repository="https://jitpack.io" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -33,10 +37,17 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Xamarin.AndroidX.AppCompat" Version="1.8.0" />
-		<PackageReference Include="Xamarin.AndroidX.Fragment" Version="1.9.1" />
-		<PackageReference Include="Xamarin.Kotlin.StdLib" Version="2.4.0.1" />
-		<PackageReference Include="Xamarin.Kotlin.StdLib.Jdk7" Version="2.4.0.1" />
-	</ItemGroup>-->
+		<PackageReference Include="Xamarin.AndroidX.AppCompat" Version="1.8.0" PrivateAssets="all"/>
+		<PackageReference Include="Xamarin.AndroidX.Fragment" Version="1.9.1"  PrivateAssets="all"/>
+		<PackageReference Include="Xamarin.Google.Android.Material" Version="1.14.0.6" PrivateAssets="all" />
+		<PackageReference Include="Xamarin.GooglePlayServices.Ads.Identifier" Version="118.3.0.3" PrivateAssets="all" />
+		<PackageReference Include="Xamarin.Kotlin.StdLib" Version="2.4.0.1" PrivateAssets="all" />
+		<PackageReference Include="Xamarin.Kotlin.StdLib.Jdk7" Version="2.4.0.1" PrivateAssets="all" />
+		<PackageReference Include="Xamarin.AndroidX.ConstraintLayout" Version="2.2.1.6" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <Folder Include="Build\" />
+	</ItemGroup>
 
 </Project>
