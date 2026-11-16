@@ -1,267 +1,323 @@
 ﻿using Android.Content;
-using Library.Slvz.Poolakeybridge;
+using Android.Runtime;
+using AndroidX.AppCompat.App;
+using IR.Cafebazaar.Poolakey;
+using IR.Cafebazaar.Poolakey.Callback;
+using IR.Cafebazaar.Poolakey.Config;
+using IR.Cafebazaar.Poolakey.Entity;
+using IR.Cafebazaar.Poolakey.Request;
 using System.Text.Json;
-
 
 namespace SLVZ.Billing;
 
 public class InAppBilling
 {
     internal static bool Initialized;
-    internal static string RsaKey = string.Empty;
-    private static List<string> ProductIDs = new List<string>();
-    private static Context? Context;
-    internal static TaskCompletionSource<bool>? InitTcs;
+    internal static Payment? Pay;
+    internal static AppCompatActivity? Activity;
 
-    public static void Initialize(Context context, string rsaKey, List<string> productIds)
+    private static Context? AppContext;
+    private static string RsaKey = string.Empty;
+    private static List<string> ProductIDs = new();
+    private static Task<bool>? _initTask;
+    private static readonly object _lock = new();
+
+    // ------------------------------------------------------------------
+    // Initialize / auto-reconnect
+    // ------------------------------------------------------------------
+
+    public static Task<bool> Initialize(Context context, string rsaKey, List<string> productIds)
     {
-        InitTcs = new TaskCompletionSource<bool>();
-        if (Initialized) return;
-
-        ProductIDs = productIds;
-        Context = context;
+        Activity = context as AppCompatActivity;   // refreshed on every call
+        AppContext = context.ApplicationContext ?? context;
         RsaKey = rsaKey;
-
-        RegisterReceiver();
-
-        PoolakeyHelper.Initialize(context, rsaKey);
-
-        //Initialized = true;
+        ProductIDs = productIds;
+        return EnsureInitialized();
     }
 
-
-    internal static TaskCompletionSource<(bool Status, PurchaseModel Product)>? purchaseTcs;
-    internal static TaskCompletionSource<(bool Status, PurchaseModel Product)>? subscriptionTcs;
-    internal static TaskCompletionSource<(bool Status, string ProductID)>? consumePurchaseTcs;
-    internal static TaskCompletionSource<(bool Status, List<ItemModel> Products)>? queryTcs;
-    internal static TaskCompletionSource<(bool Status, List<PurchaseModel> Products)>? checkSubscriptionTcs;
-    internal static TaskCompletionSource<(bool Status, List<PurchaseModel> Products)>? checkPurchaseTcs;
-
-
-    public static async Task<(bool Status, PurchaseModel Product)> Purchase(string productId, string payload = "", bool consumeAfter = false)
+    internal static Task<bool> EnsureInitialized()
     {
-        if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-
-        purchaseTcs = new TaskCompletionSource<(bool Status, PurchaseModel Product)>();
-        PoolakeyHelper.Purchase(productId, payload, consumeAfter);
-        return await purchaseTcs.Task;
-    }
-
-    public static async Task<(bool Status, PurchaseModel Product)> Subscription(string productId, string payload = "")
-    {
-        if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-
-
-        subscriptionTcs = new TaskCompletionSource<(bool Status, PurchaseModel Product)>();
-        PoolakeyHelper.Subscribe(productId, payload);
-        return await subscriptionTcs.Task;
-    }
-
-    public static async Task<(bool Status, List<ItemModel> Products)> AllInappItems()
-    {
-        if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-
-
-        queryTcs = new TaskCompletionSource<(bool Status, List<ItemModel> Products)>();
-        PoolakeyHelper.AllAvailibleInappItems(ProductIDs);
-        return await queryTcs.Task;
-    }
-
-    public static async Task<(bool Status, List<ItemModel> Products)> AllSubItems()
-    {
-        if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-
-
-        queryTcs = new TaskCompletionSource<(bool Status, List<ItemModel> Products)>();
-        PoolakeyHelper.AllAvailibleSubItems(ProductIDs);
-        return await queryTcs.Task;
-    }
-
-    public static async Task<(bool Status, List<PurchaseModel> Products)> CheckPurchases()
-    {
-        if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-
-
-        checkPurchaseTcs = new TaskCompletionSource<(bool Status, List<PurchaseModel> Products)>();
-        PoolakeyHelper.PurchasesCheck();
-        return await checkPurchaseTcs.Task;
-    }
-
-    public static async Task<(bool Status, List<PurchaseModel> Products)> CheckSubscriptions()
-    {
-        if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-
-
-        checkSubscriptionTcs = new TaskCompletionSource<(bool Status, List<PurchaseModel> Products)>();
-        PoolakeyHelper.SubscriptionCheck();
-        return await checkSubscriptionTcs.Task;
-    }
-
-    public static async Task<(bool Status, string ProductID)> Consume(PurchaseModel purchase)
-    {
-        if (!Initialized)
-            throw new InvalidOperationException(
-            "SLVZ.Billing is not initialized. Call Billing.Initialize(context, rsaKey, productIds) once at app start (e.g. in MainActivity.OnCreate) before using any billing method.");
-
-
-        consumePurchaseTcs = new TaskCompletionSource<(bool Status, string ProductID)>();
-        PoolakeyHelper.Consume(purchase.purchaseToken, purchase.productId);
-        return await consumePurchaseTcs.Task;
-    }
-
-
-    internal static void RegisterReceiver()
-    {
-        var filter = new IntentFilter("library.slvz.poolakeybridge.RESULT");
-        var receiver = new PoolakeyReceiver();
-        Context!.RegisterReceiver(receiver, filter, ReceiverFlags.Exported);
-    }
-
-
-}
-
-[BroadcastReceiver(Enabled = true, Exported = true)]
-internal class PoolakeyReceiver : BroadcastReceiver
-{
-    public override void OnReceive(Context? context, Intent? intent)
-    {
-        if (intent == null) return;
-        var type = intent.GetStringExtra("result_type") ?? "";
-        var message = intent.GetStringExtra("result_message") ?? "";
-        var product = intent.GetStringExtra("result_product") ?? "";
-
-        Console.WriteLine($"Bazaar payment: {message}");
-
-        if (type.StartsWith("purchase"))
+        lock (_lock)
         {
-            switch (type)
+            if (Initialized && Pay != null) return Task.FromResult(true);
+            if (_initTask is { IsCompleted: false }) return _initTask;
+            return _initTask = ConnectAsync();
+        }
+    }
+
+    private static Task<bool> ConnectAsync()
+    {
+        var tcs = new TaskCompletionSource<bool>();
+
+        if (AppContext == null || string.IsNullOrEmpty(RsaKey))
+        {
+            tcs.TrySetResult(false);
+            return tcs.Task;
+        }
+
+        try
+        {
+            var config = new PaymentConfiguration(new SecurityCheck.Enable(RsaKey));
+            Pay = new Payment(AppContext, config);
+
+            Pay.Connect(new KFunc1(o =>
             {
-                case "purchase_success":
-                    var model = JsonSerializer.Deserialize<PurchaseModel>(product);
-                    InAppBilling.purchaseTcs?.TrySetResult((true, model));
-                    break;
-                case "purchase_failed":
-                    InAppBilling.purchaseTcs?.TrySetResult((false, new PurchaseModel()));
-                    break;
-                default:
-                    InAppBilling.purchaseTcs?.TrySetResult((false, new PurchaseModel()));
-                    break;
-            }
+                var cb = o!.JavaCast<ConnectionCallback>();
+                cb.ConnectionSucceed(new KFunc0(() => { Initialized = true; tcs.TrySetResult(true); }));
+                cb.ConnectionFailed(new KFunc1(_ => { Initialized = false; tcs.TrySetResult(false); }));
+                cb.Disconnected(new KFunc0(() => Initialized = false));
+            }));
         }
-        else if (type.StartsWith("subscribe"))
+        catch
         {
-            switch (type)
-            {
-                case "subscribe_success":
-                    var model = JsonSerializer.Deserialize<PurchaseModel>(product);
-                    InAppBilling.subscriptionTcs?.TrySetResult((true, model));
-                    break;
-                case "subscribe_failed":
-                    InAppBilling.subscriptionTcs?.TrySetResult((false, new PurchaseModel()));
-                    break;
-                default:
-                    InAppBilling.subscriptionTcs?.TrySetResult((false, new PurchaseModel()));
-                    break;
-            }
-        }
-        else if (type.StartsWith("init"))
-        {
-            switch (type)
-            {
-                case "init_success":
-                    InAppBilling.Initialized = true;
-                    InAppBilling.InitTcs?.TrySetResult(true);
-                    break;
-                default:
-                    InAppBilling.Initialized = false;
-                    InAppBilling.InitTcs?.TrySetResult(false);
-                    break;
-            }
-        }
-        else if (type.StartsWith("consume"))
-        {
-            switch (type)
-            {
-                case "consume_success":
-                    InAppBilling.consumePurchaseTcs?.TrySetResult((true, product));
-                    break;
-                case "consume_failed":
-                    InAppBilling.consumePurchaseTcs?.TrySetResult((false, ""));
-                    break;
-                default:
-                    InAppBilling.consumePurchaseTcs?.TrySetResult((false, ""));
-                    break;
-            }
-        }
-        else if (type.StartsWith("query"))
-        {
-            switch (type)
-            {
-                case "query_success":
-                    var model = JsonSerializer.Deserialize<List<ItemModel>>(product);
-                    InAppBilling.queryTcs?.TrySetResult((true, model));
-                    break;
-                default:
-                    InAppBilling.queryTcs?.TrySetResult((false, new List<ItemModel>()));
-                    break;
-            }
-        }
-        else if (type.StartsWith("all_purchase"))
-        {
-            switch (type)
-            {
-                case "all_purchase_success":
-                    var model = JsonSerializer.Deserialize<List<PurchaseModel>>(product);
-                    InAppBilling.checkPurchaseTcs?.TrySetResult((true, model));
-                    break;
-                case "all_purchase_failed":
-                    InAppBilling.checkPurchaseTcs?.TrySetResult((false, new List<PurchaseModel>()));
-                    break;
-                default:
-                    InAppBilling.checkPurchaseTcs?.TrySetResult((false, new List<PurchaseModel>()));
-                    break;
-            }
-        }
-        else if (type.StartsWith("all_subscribe"))
-        {
-            switch (type)
-            {
-                case "all_subscribe_success":
-                    var model = JsonSerializer.Deserialize<List<PurchaseModel>>(product);
-                    InAppBilling.checkSubscriptionTcs?.TrySetResult((true, model));
-                    break;
-                case "all_subscribe_failed":
-                    InAppBilling.checkSubscriptionTcs?.TrySetResult((false, new List<PurchaseModel>()));
-                    break;
-                default:
-                    InAppBilling.checkSubscriptionTcs?.TrySetResult((false, new List<PurchaseModel>()));
-                    break;
-            }
-        }
-        else
-        {
-            InAppBilling.checkSubscriptionTcs?.TrySetResult((false, new List<PurchaseModel>()));
-            InAppBilling.checkPurchaseTcs?.TrySetResult((false, new List<PurchaseModel>()));
-            InAppBilling.queryTcs?.TrySetResult((false, new List<ItemModel>()));
-            InAppBilling.consumePurchaseTcs?.TrySetResult((false, ""));
-            InAppBilling.subscriptionTcs?.TrySetResult((false, new PurchaseModel()));
-            InAppBilling.purchaseTcs?.TrySetResult((false, new PurchaseModel()));
+            tcs.TrySetResult(false);
         }
 
-
-
-
+        return tcs.Task;
     }
+
+    private static async Task<T> WithInit<T>(Func<Task<T>> action, T fail)
+    {
+        if (!await EnsureInitialized()) return fail;
+        return await action();
+    }
+
+    // ------------------------------------------------------------------
+    // Public API
+    // ------------------------------------------------------------------
+
+    public static Task<(bool Status, PurchaseModel Product)> Purchase(string productId, string payload = "", bool consumeAfter = false)
+        => WithInit(() => StartFlow(false, productId, payload, consumeAfter), (false, new PurchaseModel()));
+
+    public static Task<(bool Status, PurchaseModel Product)> Subscription(string productId, string payload = "")
+        => WithInit(() => StartFlow(true, productId, payload, false), (false, new PurchaseModel()));
+
+    public static Task<(bool Status, List<ItemModel> Products)> AllInappItems()
+        => WithInit(() => QueryItems(false), (false, new List<ItemModel>()));
+
+    public static Task<(bool Status, List<ItemModel> Products)> AllSubItems()
+        => WithInit(() => QueryItems(true), (false, new List<ItemModel>()));
+
+    public static Task<(bool Status, List<PurchaseModel> Products)> CheckPurchases()
+        => WithInit(() => QueryPurchases(false), (false, new List<PurchaseModel>()));
+
+    public static Task<(bool Status, List<PurchaseModel> Products)> CheckSubscriptions()
+        => WithInit(() => QueryPurchases(true), (false, new List<PurchaseModel>()));
+
+    public static Task<(bool Status, string ProductID)> Consume(PurchaseModel purchase)
+        => WithInit(() => ConsumeCore(purchase), (false, ""));
+
+    public static Task<(bool Status, bool IsAvailable, int TrialPeriodDays)> CheckTrialSubscription()
+    => WithInit<(bool Status, bool IsAvailable, int TrialPeriodDays)>(
+        () => CheckTrialCore(), (false, false, 0));
+
+
+
+    // ------------------------------------------------------------------
+    // Implementation
+    // ------------------------------------------------------------------
+
+    private static Task<(bool Status, PurchaseModel Product)> StartFlow(bool subscribe, string productId, string payload, bool consumeAfter)
+    {
+        var tcs = new TaskCompletionSource<(bool Status, PurchaseModel Product)>();
+        var fail = (false, new PurchaseModel());
+
+        if (Pay == null || Activity == null)
+        {
+            tcs.TrySetResult(fail);
+            return tcs.Task;
+        }
+
+        try
+        {
+            var req = new PurchaseRequest(productId, payload, null);
+            var type = subscribe ? "subs" : "inapp";
+
+            var callback = new KFunc1(o =>
+            {
+                var cb = o!.JavaCast<PurchaseCallback>();
+                cb.FailedToBeginFlow(new KFunc1(_ => tcs.TrySetResult(fail)));
+                cb.PurchaseCanceled(new KFunc0(() => tcs.TrySetResult(fail)));
+                cb.PurchaseFailed(new KFunc1(_ => tcs.TrySetResult(fail)));
+                cb.PurchaseSucceed(new KFunc1(p =>
+                {
+                    var info = p!.JavaCast<PurchaseInfo>();
+                    var model = ToModel(info, type);
+                    var ok = subscribe || info.PurchaseState.Equals(PurchaseState.Purchased);
+                    tcs.TrySetResult((ok, model));
+
+                    if (ok && consumeAfter && !subscribe)
+                        _ = Consume(model);
+                }));
+            });
+
+            if (subscribe) Pay.SubscribeProduct(Activity.ActivityResultRegistry, req, callback);
+            else Pay.PurchaseProduct(Activity.ActivityResultRegistry, req, callback);
+        }
+        catch
+        {
+            tcs.TrySetResult(fail);
+        }
+
+        return tcs.Task;
+    }
+
+    private static Task<(bool Status, string ProductID)> ConsumeCore(PurchaseModel purchase)
+    {
+        var tcs = new TaskCompletionSource<(bool Status, string ProductID)>();
+
+        if (Pay == null || string.IsNullOrEmpty(purchase.purchaseToken))
+        {
+            tcs.TrySetResult((false, ""));
+            return tcs.Task;
+        }
+
+        try
+        {
+            Pay.ConsumeProduct(purchase.purchaseToken, new KFunc1(o =>
+            {
+                var cb = o!.JavaCast<ConsumeCallback>();
+                cb.ConsumeSucceed(new KFunc0(() => tcs.TrySetResult((true, purchase.productId ?? ""))));
+                cb.ConsumeFailed(new KFunc1(_ => tcs.TrySetResult((false, ""))));
+            }));
+        }
+        catch
+        {
+            tcs.TrySetResult((false, ""));
+        }
+
+        return tcs.Task;
+    }
+
+    private static Task<(bool Status, List<ItemModel> Products)> QueryItems(bool subs)
+    {
+        var tcs = new TaskCompletionSource<(bool Status, List<ItemModel> Products)>();
+
+        if (Pay == null)
+        {
+            tcs.TrySetResult((false, new List<ItemModel>()));
+            return tcs.Task;
+        }
+
+        try
+        {
+            var callback = new KFunc1(o =>
+            {
+                var cb = o!.JavaCast<GetSkuDetailsCallback>();
+                cb.GetSkuDetailsSucceed(new KFunc1(list =>
+                {
+                    var items = new List<ItemModel>();
+                    if (list != null)
+                    {
+                        var jl = new JavaList<SkuDetails>(list.Handle, JniHandleOwnership.DoNotTransfer);
+                        foreach (var s in jl)
+                            items.Add(new ItemModel
+                            {
+                                productId = s.Sku,
+                                description = s.Description,
+                                price = s.Price,
+                                title = s.Title,
+                                type = s.Type
+                            });
+                    }
+                    tcs.TrySetResult((true, items));
+                }));
+                cb.GetSkuDetailsFailed(new KFunc1(_ => tcs.TrySetResult((false, new List<ItemModel>()))));
+            });
+
+            if (subs) Pay.GetSubscriptionSkuDetails(ProductIDs, callback);
+            else Pay.GetInAppSkuDetails(ProductIDs, callback);
+        }
+        catch
+        {
+            tcs.TrySetResult((false, new List<ItemModel>()));
+        }
+
+        return tcs.Task;
+    }
+
+    private static Task<(bool Status, bool IsAvailable, int TrialPeriodDays)> CheckTrialCore()
+    {
+        var tcs = new TaskCompletionSource<(bool Status, bool IsAvailable, int TrialPeriodDays)>();
+
+        if (Pay == null)
+        {
+            tcs.TrySetResult((false, false, 0));
+            return tcs.Task;
+        }
+
+        try
+        {
+            Pay.CheckTrialSubscription(new KFunc1(o =>
+            {
+                var cb = o!.JavaCast<CheckTrialSubscriptionCallback>();
+                cb.CheckTrialSubscriptionSucceed(new KFunc1(p =>
+                {
+                    var info = p!.JavaCast<TrialSubscriptionInfo>();
+                    tcs.TrySetResult((true, info.IsAvailable, info.TrialPeriodDays));
+                }));
+                cb.CheckTrialSubscriptionFailed(new KFunc1(_ => tcs.TrySetResult((false, false, 0))));
+            }));
+        }
+        catch
+        {
+            tcs.TrySetResult((false, false, 0));
+        }
+
+        return tcs.Task;
+    }
+
+    private static Task<(bool Status, List<PurchaseModel> Products)> QueryPurchases(bool subs)
+    {
+        var tcs = new TaskCompletionSource<(bool Status, List<PurchaseModel> Products)>();
+
+        if (Pay == null)
+        {
+            tcs.TrySetResult((false, new List<PurchaseModel>()));
+            return tcs.Task;
+        }
+
+        try
+        {
+            var type = subs ? "subs" : "inapp";
+            var callback = new KFunc1(o =>
+            {
+                var cb = o!.JavaCast<PurchaseQueryCallback>();
+                cb.QuerySucceed(new KFunc1(list =>
+                {
+                    var result = new List<PurchaseModel>();
+                    if (list != null)
+                    {
+                        var jl = new JavaList<PurchaseInfo>(list.Handle, JniHandleOwnership.DoNotTransfer);
+                        foreach (var info in jl)
+                            result.Add(ToModel(info, type));
+                    }
+                    tcs.TrySetResult((true, result));
+                }));
+                cb.QueryFailed(new KFunc1(_ => tcs.TrySetResult((false, new List<PurchaseModel>()))));
+            });
+
+            if (subs) Pay.GetSubscribedProducts(callback);
+            else Pay.GetPurchasedProducts(callback);
+        }
+        catch
+        {
+            tcs.TrySetResult((false, new List<PurchaseModel>()));
+        }
+
+        return tcs.Task;
+    }
+
+    internal static PurchaseModel ToModel(PurchaseInfo info, string type) => new()
+    {
+        productId = info.ProductId,
+        purchaseToken = info.PurchaseToken,
+        state = JsonSerializer.SerializeToElement(info.PurchaseState.Name()),
+        payload = info.Payload,
+        signature = info.DataSignature,
+        orderId = info.OrderId,
+        originalJson = info.OriginalJson,
+        purchaseTime = info.PurchaseTime,
+        type = type
+    };
 }

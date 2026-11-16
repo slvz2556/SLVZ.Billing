@@ -14,13 +14,30 @@
 	  <PackageLicenseExpression>MIT</PackageLicenseExpression>
 	  <PackageTags>C#, Maui, Billing, Cafebazaar</PackageTags>
 
-	  <Version>1.0.3</Version>
-	  <AssemblyVersion>1.0.3</AssemblyVersion>
-	  <FileVersion>1.0.3</FileVersion>
+	  <Version>2.0.0</Version>
+	  <AssemblyVersion>2.0.0</AssemblyVersion>
+	  <FileVersion>2.0.0</FileVersion>
   </PropertyGroup>
 
 	<ItemGroup>
 		<None Include="README.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
+
+
+	<ItemGroup>
+		<AndroidMavenLibrary Include="com.github.cafebazaar.Poolakey:poolakey" Version="2.3.0" Repository="https://jitpack.io" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<AndroidMavenLibrary Include="org.jetbrains.kotlin:kotlin-android-extensions-runtime" Version="1.7.21" Bind="false" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Xamarin.AndroidX.AppCompat" Version="1.8.0" />
+		<PackageReference Include="Xamarin.AndroidX.Fragment" Version="1.9.1" />
+		<PackageReference Include="Xamarin.Kotlin.StdLib" Version="2.4.0.1" />
+		<PackageReference Include="Xamarin.Kotlin.StdLib.Jdk7" Version="2.4.0.1" />
+	</ItemGroup>
+
 
 </Project>
